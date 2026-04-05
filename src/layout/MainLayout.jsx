@@ -18,7 +18,7 @@ export default function MainLayout() {
 
       {/* 🔹 Footer */}
       <footer className="bg-gray-200 dark:bg-gray-900 text-gray-900 dark:text-white text-center py-4 mt-4 border-t border-gray-300 dark:border-gray-700">
-        <p>© 2026 NewsMonkey. All rights reserved.</p>
+        <p>© 2026 NewsLens. All rights reserved.</p>
       </footer>
 
     </div>

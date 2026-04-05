@@ -55,7 +55,7 @@ export default function Navbar() {
       <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
         {/* 🔹 Left: Logo */}
         <NavLink to="/" className="text-xl font-bold">
-        <img width={'200px'} src="../public/NewsLensLogo.png" alt="NewsLens" />
+        <img width={'200px'} src="/NewsLensLogo.png" alt="NewsLens" />
       
         </NavLink>
 

@@ -1,216 +1,200 @@
-# NewsMonkey Architecture & Data Flow
+# NewsLens Architecture And Data Flow
 
-## Component Structure
+## High-Level Structure
 
-```
-App (BrowserRouter)
-├── MainLayout
-│   ├── Navbar
-│   │   ├── Search Input (Desktop) → Debounce Logic
-│   │   ├── Search Input (Mobile) → Direct Submit
-│   │   └── Categories Navigation
-│   ├── Outlet (Route Content)
-│   │   ├── Home
-│   │   │   └── News Component
-│   │   ├── Category/:cat
-│   │   │   └── News Component`
-│   │   ├── Search
-│   │   │   └── News Component
-│   │   ├── About
-│   │   └── ForYou
-│   │       └── News Component
-│   └── Footer
-│
+```text
+main.jsx
 └── ContextProvider
-    └── NewsContext (Global State)
+    └── App
+        └── BrowserRouter
+            └── Routes
+                └── MainLayout
+                    ├── Navbar
+                    ├── Outlet
+                    │   ├── Home
+                    │   │   └── News
+                    │   ├── Category
+                    │   │   └── News
+                    │   ├── Search
+                    │   │   └── News
+                    │   ├── ForYou
+                    │   │   └── News
+                    │   └── About
+                    └── Footer
 ```
 
-## Data Flow Diagram
+## Routing
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                      NEWSCONTEXT                             │
-│  (Global State Management)                                   │
-├─────────────────────────────────────────────────────────────┤
-│ • query: string          [Search results filter]             │
-│ • country: string        [Default: "in"]                     │
-│ • search: string         [Current input value]               │
-│ • category: string       [Selected category]                 │
-│ • menuOpen: boolean      [Mobile menu state]                 │
-└─────────────────────────────────────────────────────────────┘
-                           │
-         ┌─────────────────┼─────────────────┐
-         │                 │                 │
-         ▼                 ▼                 ▼
-    ┌─────────┐      ┌──────────┐      ┌──────────┐
-    │ NAVBAR  │      │  HOME    │      │ SEARCH   │
-    └─────────┘      └──────────┘      └──────────┘
-         │                 │                 │
-         │    ┌────────────┼────────────┐   │
-         │    │            │            │   │
-         ▼    ▼            ▼            ▼   ▼
-    ┌──────────────────────────────────────────┐
-    │        NEWS COMPONENT                     │
-    │  (Fetches & Displays Articles)           │
-    └──────────────────────────────────────────┘
-              │
-              ├─► buildNewsURL()
-              │   ├─ query
-              │   ├─ category
-              │   └─ country
-              │
-              └─► fetch(URL)
-                  │
-                  ▼
-         ┌────────────────────┐
-         │ NEWSDATA.IO API    │
-         │ (External Source)  │
-         └────────────────────┘
-              │
-              ▼
-    ┌──────────────────────┐
-    │ setArticles()        │
-    │ [array of objects]   │
-    └──────────────────────┘
-              │
-              ▼
-    ┌────────────────────────────┐
-    │   NewsItem Components      │
-    │   (Rendered in Grid)       │
-    └────────────────────────────┘
-```
-
-## User Interaction Flow
-
-### Desktop Search Flow
-```
-User Types in Search Input
-         │
-         ▼
-onChange event → setSearch(value)
-         │
-         ▼
-useEffect1 (debounce)
-  - 500ms timer starts
-  - previous timers cleared
-         │
-         ▼
-useEffect2 (debounce complete)
-  - if (debouncedSearch.length > 2)
-  - setQuery(debouncedSearch)
-  - navigate("/search")
-```
-
-### Mobile Search Flow
-```
-User Types in Search Input
-         │
-         ▼
-onChange event → setSearch(value)
-         │
-         ▼
-User Clicks "Go" Button
-         │
-         ▼
-onClick Handler
-  - if (search.length > 0)
-  - setQuery(search)
-  - navigate("/search")
-  - setMenuOpen(false)
-```
-
-### Category Navigation
-```
-User Clicks Category Link
-         │
-         ▼
-Navigate to /category/:cat
-         │
-         ▼
-Category Component
-  - Extract cat from useParams()
-  - useEffect: setCategory(cat)
-         │
-         ▼
-News Component Renders
-  - Uses category from context
-  - Fetches category-specific articles
-```
-
-## API Request Flow
-
-```
-NEWS Component
-     │
-     ├─► buildNewsURL({ query, category, country })
-     │
-     ├─► Construct URL:
-     │   base: "https://newsdata.io/api/1/news"
-     │   params: "apikey=KEY&country=in&language=en"
-     │   if query: append "&q=query"
-     │   if category: append "&category=category"
-     │
-     ├─► fetch(url, { signal: controller.signal })
-     │   [Abort controller for cleanup]
-     │
-     ├─► res.json()
-     │
-     ├─► setArticles(data.results || [])
-     │
-     └─► Render NewsItem components
-         (with title, description, image, author, date, source)
-```
-
-## State Update Sequence
-
-```
-1. User navigates to page
-   └─ useEffect in respective page
-      └─ setCategory() → updates context
-
-2. Category changes
-   └─ News component re-renders
-      └─ useEffect detects [query, category, country] change
-         └─ fetchNews() called
-            └─ API request sent
-               └─ setArticles() updates state
-                  └─ NewsItem grid re-renders
-
-3. User searches
-   Desktop:
-   └─ onChange → setSearch
-      └─ useEffect1 debounce
-         └─ useEffect2 navigates & setQuery
-
-   Mobile:
-   └─ onChange → setSearch
-      └─ onClick → setQuery & navigate directly
-```
-
-## Error Handling
-
-```
-fetch(url)
-   │
-   ├─► Success
-   │   └─ res.json() → setArticles(data.results)
-   │
-   ├─► Network Error
-   │   └─ catch(error)
-   │       └─ Log error (not AbortError)
-   │
-   └─► AbortError
-       └─ Request cancelled (component unmounted)
-           └─ No error logged
-```
-
-## Performance Optimizations
-
-| Optimization | Implementation | Benefit |
+| Route | Component | Purpose |
 |---|---|---|
-| Debouncing | 500ms delay on desktop search | Reduces API calls |
-| Abort Controller | Cancel requests on unmount | Prevents memory leaks |
-| Conditional Rendering | Only render if data exists | Faster UI updates |
-| Line Clamp | limit-clamp-2/3 on text | Better layout control |
-| Grid Layout | md:grid-cols-3 | Responsive design |
+| `/` | `Home` | Top headlines with `general` category |
+| `/category/:cat` | `Category` | Category-specific news feed |
+| `/search` | `Search` | Search results for the current query |
+| `/foryou` | `ForYou` | Curated feed using `category="top"` |
+| `/about` | `About` | Static app information |
 
+## Global State
+
+`ContextProvider` exposes a shared `NewsContext` used by the navbar and page-level components.
+
+```js
+{
+  query,
+  setQuery,
+  country,
+  setCountry,
+  search,
+  setSearch,
+  menuOpen,
+  setMenuOpen,
+  category,
+  setCategory,
+  darkMode,
+  setDarkMode
+}
+```
+
+### State Responsibilities
+
+| State | Type | Default | Used For |
+|---|---|---|---|
+| `query` | string | `""` | Active search term sent to the API |
+| `country` | string | `"in"` | Country filter for all requests |
+| `search` | string | `""` | Controlled navbar input value |
+| `menuOpen` | boolean | `false` | Mobile navigation state |
+| `category` | string | `"general"` | Active feed category |
+| `darkMode` | boolean | `false` or stored preference | Theme mode persisted in `localStorage` |
+
+## Component Responsibilities
+
+### `Navbar`
+
+- Displays the logo, main navigation, and category links
+- Controls the search form for desktop and mobile
+- Updates `query`, `category`, `search`, and `menuOpen`
+- Toggles `darkMode`
+- Navigates to `/search` after a valid submit
+
+### `Home`
+
+- Resets the app to the default feed
+- Sets `category` to `general`
+- Clears any active search query
+- Renders `News`
+
+### `Category`
+
+- Reads `cat` from the route
+- Updates the context category
+- Clears previous search state
+- Renders `News` for the chosen category
+
+### `Search`
+
+- Forces category back to `general`
+- Uses the active `query` from context
+- Shows a prompt when no query exists
+- Renders `News` without its internal heading
+
+### `ForYou`
+
+- Uses the current `country` from context
+- Passes `category="top"` and `query=""` directly into `News`
+
+### `News`
+
+- Combines context values with optional prop overrides
+- Builds the external API request URL
+- Fetches articles from NewsData.io
+- Tracks `loading`, `error`, `articles`, and `completedRequestKey`
+- Renders skeleton cards, error states, empty states, and article cards
+
+### `NewsItem`
+
+- Renders a single article card
+- Falls back to `/E404.png` when the image is missing
+- Displays source, title, description, author, date, and external link
+
+## Request Lifecycle
+
+```text
+User action
+  -> route change or search submit
+  -> page component updates context
+  -> News recomputes query/category/country
+  -> buildNewsURL(...)
+  -> fetch(..., { signal })
+  -> response JSON parsed
+  -> articles stored in local component state
+  -> grid of NewsItem cards rendered
+```
+
+## API Request Rules
+
+Base endpoint:
+
+```text
+https://newsdata.io/api/1/news
+```
+
+Request construction in `News.jsx`:
+
+- Always includes `apikey`, `country`, and `language=en`
+- Adds `q` when `query` is non-empty
+- Otherwise adds `category` when the category is not `general`
+- Uses `AbortController` to cancel stale requests on cleanup
+
+Example request shapes:
+
+```text
+/news?apikey=KEY&country=in&language=en
+/news?apikey=KEY&country=in&language=en&category=technology
+/news?apikey=KEY&country=in&language=en&q=artificial%20intelligence
+```
+
+## Search Flow
+
+```text
+Navbar input change
+  -> setSearch(value)
+  -> form submit
+  -> trim input
+  -> if length < 3, stop
+  -> setQuery(trimmedSearch)
+  -> setCategory("general")
+  -> setMenuOpen(false)
+  -> navigate("/search")
+```
+
+## Category Flow
+
+```text
+User opens /category/:cat
+  -> Category reads URL param
+  -> setCategory(cat)
+  -> setQuery("")
+  -> setSearch("")
+  -> News fetches category feed
+```
+
+## Theme Flow
+
+```text
+ContextProvider loads darkMode from localStorage
+  -> effect toggles .dark class on documentElement
+  -> effect persists the updated value to localStorage
+```
+
+## Error And Loading Handling
+
+- `loading` starts as `true` for each request
+- `waitingForCurrentRequest` prevents stale UI from rendering during a new fetch
+- `AbortError` is ignored during cleanup
+- Non-abort failures set a user-facing `Failed to load articles.` message
+- Empty responses show `No Articles found ...`
+
+## Current Architecture Notes
+
+- The app is client-side only and has no backend or database layer
+- `country` exists in shared state, but there is no UI yet for changing it
+- `completedRequestKey` is used to avoid showing previous data during active transitions

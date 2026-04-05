@@ -1,175 +1,133 @@
-# NewsMonkey ER Diagram
+# NewsLens Data Model
 
-## Data Model Overview
+This project does not currently have a relational database. The useful "ER" view for the app is the runtime data model made up of React context state, route params, and the NewsData.io response payload.
+
+## Runtime Entity Diagram
 
 ```mermaid
 erDiagram
-    USER ||--o{ SEARCH : performs
-    USER ||--o{ PREFERENCE : has
-    SEARCH ||--o{ ARTICLE : returns
-    PREFERENCE ||--o{ CATEGORY : selects
-    PREFERENCE ||--o{ COUNTRY : prefers
-    ARTICLE ||--o{ SOURCE : "published by"
-    ARTICLE ||--o{ AUTHOR : "written by"
-    ARTICLE ||--o{ CATEGORY : "belongs to"
+    NEWS_CONTEXT ||--o{ SEARCH_REQUEST : drives
+    NEWS_CONTEXT ||--o{ CATEGORY_ROUTE : selects
+    SEARCH_REQUEST ||--o{ ARTICLE : returns
+    ARTICLE }o--|| SOURCE : published_by
+    ARTICLE }o--o| AUTHOR : credited_to
 
-    USER {
-        string user_id PK
-        string session_id
-        boolean menu_open
+    NEWS_CONTEXT {
+        string query
+        string country
+        string search
+        string category
+        boolean menuOpen
+        boolean darkMode
     }
 
-    SEARCH {
-        string search_id PK
-        string user_id FK
-        string query
-        timestamp created_at
-        int results_count
+    CATEGORY_ROUTE {
+        string cat
+    }
+
+    SEARCH_REQUEST {
+        string apikey
+        string country
+        string language
+        string q
+        string category
     }
 
     ARTICLE {
-        string article_id PK
         string title
         string description
-        string content_url "link"
         string image_url
-        timestamp published_date "pubDate"
-        string source_id FK
-        string category_id FK
-    }
-
-    SOURCE {
-        string source_id PK
+        string link
+        string pubDate
         string source_name
     }
 
     AUTHOR {
-        string author_id PK
-        string author_name "creator"
+        string creator
     }
 
-    CATEGORY {
-        string category_id PK
-        string category_name
-        string description
-    }
-
-    COUNTRY {
-        string country_id PK
-        string country_code
-        string country_name
-    }
-
-    PREFERENCE {
-        string preference_id PK
-        string user_id FK
-        string country_id FK
-        string default_category_id FK
+    SOURCE {
+        string source_name
     }
 ```
 
-## Entity Details
+## Entity Definitions
 
-### 1. **USER**
-| Field | Type | Constraint |
-|-------|------|-----------|
-| user_id | UUID | PRIMARY KEY |
-| session_id | String | Session tracking |
-| menu_open | Boolean | Mobile menu state |
+### `NEWS_CONTEXT`
 
-### 2. **ARTICLE**
-| Field | Type | Constraint |
-|-------|------|-----------|
-| article_id | UUID | PRIMARY KEY |
-| title | String | NOT NULL |
-| description | String | |
-| content_url | URL | NOT NULL |
-| image_url | URL | |
-| published_date | DateTime | NOT NULL |
-| source_id | FK | REFERENCES SOURCE |
-| category_id | FK | REFERENCES CATEGORY |
+Shared client-side state provided by `ContextProvider`.
 
-### 3. **SOURCE**
-| Field | Type | Constraint |
-|-------|------|-----------|
-| source_id | UUID | PRIMARY KEY |
-| source_name | String | UNIQUE, NOT NULL |
+| Field | Type | Description |
+|---|---|---|
+| `query` | string | Active search query used by the news feed |
+| `country` | string | Country code sent to the API, default `in` |
+| `search` | string | Controlled value of the navbar search input |
+| `category` | string | Active category, default `general` |
+| `menuOpen` | boolean | Mobile navigation visibility |
+| `darkMode` | boolean | Theme mode persisted in `localStorage` |
 
-### 4. **CATEGORY**
-| Field | Type | Constraint |
-|-------|------|-----------|
-| category_id | String | PRIMARY KEY |
-| category_name | String | UNIQUE, NOT NULL |
+### `CATEGORY_ROUTE`
 
-**Categories:** breaking, business, crime, domestic, education, entertainment, environment, food, health, lifestyle, other, politics, science, sports, technology, top, tourism, world
+Route parameter from `/category/:cat`.
 
-### 5. **AUTHOR**
-| Field | Type | Constraint |
-|-------|------|-----------|
-| author_id | UUID | PRIMARY KEY |
-| author_name | String | |
+| Field | Type | Description |
+|---|---|---|
+| `cat` | string | Category slug selected from the navbar |
 
-### 6. **COUNTRY**
-| Field | Type | Constraint |
-|-------|------|-----------|
-| country_id | String | PRIMARY KEY |
-| country_code | String (2) | e.g., "in", "us" |
-| country_name | String | |
+### `SEARCH_REQUEST`
 
-### 7. **SEARCH**
-| Field | Type | Constraint |
-|-------|------|-----------|
-| search_id | UUID | PRIMARY KEY |
-| user_id | FK | REFERENCES USER |
-| query | String | NOT NULL |
-| created_at | DateTime | NOT NULL |
-| results_count | Int | |
+Computed request object produced inside `News.jsx`.
 
-### 8. **PREFERENCE**
-| Field | Type | Constraint |
-|-------|------|-----------|
-| preference_id | UUID | PRIMARY KEY |
-| user_id | FK | REFERENCES USER |
-| country_id | FK | REFERENCES COUNTRY |
-| default_category_id | FK | REFERENCES CATEGORY |
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `apikey` | string | Yes | Read from `VITE_NEWS_API_KEY` |
+| `country` | string | Yes | Comes from context or prop override |
+| `language` | string | Yes | Hard-coded to `en` |
+| `q` | string | No | Added only when a search query exists |
+| `category` | string | No | Added only when category is not `general` and query is empty |
 
-## Current React Context State
+### `ARTICLE`
 
-```
-NewsContext {
-  query: string               // Current search query
-  setQuery: function
-  country: string             // User's country (default: "in")
-  setCountry: function
-  search: string              // Search input value
-  setSearch: function
-  menuOpen: boolean           // Mobile menu state
-  setMenuOpen: function
-  category: string            // Selected category (default: "general")
-  setCategory: function
-}
-```
+Primary content item returned by NewsData.io and rendered by `NewsItem`.
 
-## API Integration Points
+| Field | Type | Description |
+|---|---|---|
+| `title` | string | Headline text |
+| `description` | string | Short summary |
+| `image_url` | string | Thumbnail or hero image URL |
+| `link` | string | External article URL |
+| `pubDate` | string | Publication date string |
+| `source_name` | string | Publisher name |
+| `creator` | string[] | Optional author array from the API |
 
-### NewsData.io API
-- **Endpoint:** `https://newsdata.io/api/1/news`
-- **Query Parameters:**
-  - `apikey`: API Key
-  - `country`: Country code (e.g., "in")
-  - `language`: "en"
-  - `q`: Search query (optional)
-  - `category`: Category (optional, if not searching)
+### `SOURCE`
 
-### Response Object
+Publisher metadata embedded inside each article response.
+
+| Field | Type | Description |
+|---|---|---|
+| `source_name` | string | Human-readable publication name |
+
+### `AUTHOR`
+
+Optional author metadata derived from `creator`.
+
+| Field | Type | Description |
+|---|---|---|
+| `creator` | string | First author shown in the UI when available |
+
+## API Response Shape
+
+Example payload used by the app:
+
 ```json
 {
   "results": [
     {
       "title": "Article Title",
       "description": "Description",
-      "image_url": "URL",
-      "link": "Article URL",
+      "image_url": "https://example.com/image.jpg",
+      "link": "https://example.com/story",
       "creator": ["Author Name"],
       "pubDate": "2026-03-26 12:00:00",
       "source_name": "Source Name"
@@ -178,28 +136,22 @@ NewsContext {
 }
 ```
 
-## Relationships Summary
+## Relationship Notes
 
-1. **USER → SEARCH** (1:M)
-   - One user can perform multiple searches
+1. One `NEWS_CONTEXT` state can produce many `SEARCH_REQUEST` combinations over time.
+2. One `CATEGORY_ROUTE` value updates the `category` field in `NEWS_CONTEXT`.
+3. One `SEARCH_REQUEST` returns zero or more `ARTICLE` records.
+4. Each `ARTICLE` is displayed with one visible `SOURCE`.
+5. Each `ARTICLE` may expose zero or more authors, but the UI currently displays only the first creator.
 
-2. **SEARCH → ARTICLE** (1:M)
-   - One search returns multiple articles
+## Supported Categories
 
-3. **USER → PREFERENCE** (1:1)
-   - Each user has one preference record
+The navbar currently exposes these category slugs:
 
-4. **PREFERENCE → COUNTRY** (M:1)
-   - Multiple users can prefer same country
+`breaking`, `business`, `crime`, `domestic`, `education`, `entertainment`, `environment`, `food`, `health`, `lifestyle`, `other`, `politics`, `science`, `sports`, `technology`, `top`, `tourism`, `world`
 
-5. **PREFERENCE → CATEGORY** (M:1)
-   - Multiple users can prefer same category
+## Important Clarification
 
-6. **ARTICLE → SOURCE** (M:1)
-   - Multiple articles from same source
-
-7. **ARTICLE → AUTHOR** (M:1)
-   - Multiple articles by same author
-
-8. **ARTICLE → CATEGORY** (M:1)
-   - Multiple articles in same category
+- There is no persisted `USER`, `SEARCH`, or `PREFERENCE` table in the current codebase.
+- User preferences exist only in browser memory, except for `darkMode`, which is stored in `localStorage`.
+- If a backend is added later, this file should be split into a true database ERD and a separate client-side state model.
